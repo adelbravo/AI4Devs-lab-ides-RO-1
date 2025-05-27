@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import AutocompleteInput from './AutocompleteInput';
+import { useAuth } from '../context/AuthContext';
 
 interface Education {
   institution: string;
@@ -35,6 +36,7 @@ interface ValidationError {
 }
 
 const CandidateForm: React.FC = () => {
+  const { token } = useAuth();
   const [formData, setFormData] = useState<CandidateFormData>({
     firstName: '',
     lastName: '',
@@ -202,6 +204,7 @@ const CandidateForm: React.FC = () => {
       const response = await axios.post('http://localhost:3010/api/candidates', formDataToSend, {
         headers: {
           'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
         },
       });
 

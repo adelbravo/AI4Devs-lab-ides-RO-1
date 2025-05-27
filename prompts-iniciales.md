@@ -1,5 +1,5 @@
 # Desarrollo de Funcionalidad para Añadir Candidatos
-_Exported on 5/27/2025 at 00:39:00 CDT from Cursor (0.50.7)_
+_Exported on 5/27/2025 at 00:52:12 CDT from Cursor (0.50.7)_
 
 ---
 
@@ -6294,4 +6294,290 @@ Ahora, tu aplicación es más segura porque depende completamente del secreto qu
 Si no configuras `JWT_SECRET` en el `.env`, el servidor backend no se iniciará y verás un mensaje de error claro en la consola.
 
 ¿Hay algo más en lo que te pueda ayudar con la seguridad o cualquier otra parte del proyecto?
+
+---
+
+**User**
+
+al trtaar de usar la busqueda de los campos de la seccion de educacion y experiencia la consola marca 401
+
+---
+
+**Cursor**
+
+
+
+Entiendo el problema. Los endpoints de autocompletado (`/api/candidates/autocomplete/...`) también están protegidos por JWT, pero el componente `AutocompleteInput` aún no está enviando el token en sus solicitudes.
+
+Necesito modificar el componente `AutocompleteInput` para que obtenga el token del contexto de autenticación y lo incluya en la cabecera de las solicitudes al backend.
+
+Voy a modificar el archivo `frontend/src/components/AutocompleteInput.tsx`.
+
+
+```typescriptreact
+import React, { useState, useEffect } from 'react';
+import { useCombobox } from 'downshift';
+import axios from 'axios';
+import { useAuth } from '../context/AuthContext'; // Importar useAuth
+
+interface AutocompleteInputProps {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  endpoint: string; // endpoint relativo, ej: '/api/autocomplete/institutions'
+  placeholder?: string;
+  disabled?: boolean;
+}
+
+const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
+  label,
+  value,
+  onChange,
+  endpoint,
+  placeholder,
+  disabled,
+}) => {
+  const [inputItems, setInputItems] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const { token } = useAuth(); // Obtener el token del contexto
+
+  const fetchSuggestions = async (inputValue: string) => {
+    if (!token) {
+      // No intentar buscar si no hay token
+      setInputItems([]);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await axios.get(endpoint, {
+        params: { query: inputValue },
+        headers: { Authorization: `Bearer ${token}` }, // Incluir el token
+      });
+      setInputItems(res.data);
+    } catch (err) {
+      console.error('Error fetching autocomplete suggestions:', err);
+      setInputItems([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const {
+    isOpen,
+    getMenuProps,
+    getInputProps,
+    getItemProps,
+    highlightedIndex,
+    setInputValue,
+  } = useCombobox({
+    inputValue: value,
+    items: inputItems,
+    onInputValueChange: ({ inputValue }) => {
+      onChange(inputValue || '');
+      if (inputValue && inputValue.length > 1) {
+        fetchSuggestions(inputValue);
+      } else {
+        setInputItems([]);
+      }
+    },
+    onSelectedItemChange: ({ selectedItem }) => {
+      if (selectedItem) onChange(selectedItem);
+    },
+    // Agregar esto para que el input retenga el valor seleccionado
+    itemToString: (item) => (item ? item : ''),
+  });
+
+  useEffect(() => {
+    // Cargar sugerencias iniciales si el campo ya tiene un valor y hay token
+    if (value && value.length > 1 && token) {
+      fetchSuggestions(value);
+    }
+    // eslint-disable-next-line
+  }, [token]); // Ejecutar efecto cuando el token cambie
+
+  return (
+    <div className="mb-2">
+      <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>
+      <div className="relative">
+        <input
+          {...getInputProps({
+            placeholder: placeholder || '',
+            disabled,
+            className:
+              'block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 py-2 px-3',
+          })}
+        />
+        {loading && (
+          <span className="absolute right-3 top-2 text-gray-400 animate-spin">⏳</span>
+        )}
+        <ul
+          {...getMenuProps()}
+          className={`absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-auto transition-all duration-100 ${
+            isOpen && inputItems.length > 0 ? '' : 'hidden'
+          }`}
+        >
+          {isOpen &&
+            inputItems.map((item, index) => (
+              <li
+                key={item}
+                {...getItemProps({ item, index })}
+                className={`cursor-pointer px-4 py-2 text-sm ${{
+                  true: 'hover:bg-indigo-100',
+                  false: '',
+                }[String(highlightedIndex === index)]} ${
+                  highlightedIndex === index ? 'bg-indigo-100 text-indigo-700' : ''
+                }`}
+              >
+                {item}
+              </li>
+            ))}
+        </ul>
+      </div>
+    </div>
+  );
+};
+
+export default AutocompleteInput;
+
+```
+
+El componente `AutocompleteInput` ha sido modificado para usar el hook `useAuth` y obtener el token JWT. Ahora incluye el token en la cabecera `Authorization` de las solicitudes GET a los endpoints de autocompletado.
+
+Con este cambio, las solicitudes de autocompletado deberían pasar la autenticación JWT en el backend y ya no deberías ver errores 401 en la consola al intentar usar la búsqueda en los campos de educación y experiencia.
+
+Por favor, prueba la funcionalidad nuevamente. Si sigues teniendo problemas, házmelo saber.
+
+---
+
+**User**
+
+ahora me arroja 401 a la hora de guardar el candidato
+
+---
+
+**Cursor**
+
+Entiendo el problema. El error 401 al guardar el candidato indica que la solicitud POST no está incluyendo el token JWT en la cabecera. Necesito modificar el componente `CandidateForm` para incluir el token en la solicitud de guardado.
+
+
+Voy a modificar el componente `CandidateForm` para incluir el token JWT en la solicitud de guardado del candidato.
+
+
+```typescriptreact
+import React, { useState } from 'react';
+import axios from 'axios';
+import AutocompleteInput from './AutocompleteInput';
+import { useAuth } from '../context/AuthContext';
+
+// ... existing code ...
+
+const CandidateForm: React.FC = () => {
+  const { token } = useAuth();
+  const [formData, setFormData] = useState<CandidateFormData>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    address: '',
+    education: [{ institution: '', degree: '', fieldOfStudy: '', startDate: '', endDate: '' }],
+    experience: [{ company: '', position: '', description: '', startDate: '', endDate: '' }],
+    cv: null,
+  });
+
+  // ... existing code ...
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setGeneralError(null);
+    
+    if (!validateForm()) return;
+
+    setIsSubmitting(true);
+    setSubmitSuccess(false);
+
+    try {
+      const formDataToSend = new FormData();
+      
+      // Añadir campos básicos
+      formDataToSend.append('firstName', formData.firstName);
+      formDataToSend.append('lastName', formData.lastName);
+      formDataToSend.append('email', formData.email);
+      formDataToSend.append('phone', formData.phone);
+      formDataToSend.append('address', formData.address);
+      
+      // Validar y formatear educación
+      const validEducation = formData.education.filter(edu => 
+        edu.institution && edu.degree && edu.fieldOfStudy && edu.startDate
+      );
+      if (validEducation.length === 0) {
+        throw new Error('Debe agregar al menos un registro de educación válido');
+      }
+      formDataToSend.append('education', JSON.stringify(validEducation));
+      
+      // Validar y formatear experiencia
+      const validExperience = formData.experience.filter(exp => 
+        exp.company && exp.position && exp.startDate
+      );
+      if (validExperience.length === 0) {
+        throw new Error('Debe agregar al menos un registro de experiencia válido');
+      }
+      formDataToSend.append('experience', JSON.stringify(validExperience));
+      
+      // Añadir archivo CV si existe
+      if (formData.cv) {
+        formDataToSend.append('cv', formData.cv);
+      }
+
+      const response = await axios.post('http://localhost:3010/api/candidates', formDataToSend, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (response.status === 201) {
+        setSubmitSuccess(true);
+        setFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          address: '',
+          education: [{ institution: '', degree: '', fieldOfStudy: '', startDate: '', endDate: '' }],
+          experience: [{ company: '', position: '', description: '', startDate: '', endDate: '' }],
+          cv: null,
+        });
+        setFileName('');
+        setErrors({});
+      }
+    } catch (error) {
+      console.error('Error al enviar el formulario:', error);
+      if (axios.isAxiosError(error) && error.response?.data?.errors) {
+        const validationErrors = error.response.data.errors.reduce((acc: { [key: string]: string }, err: ValidationError) => {
+          acc[err.path] = err.msg;
+          return acc;
+        }, {});
+        setErrors(validationErrors);
+      } else if (error instanceof Error) {
+        setGeneralError(error.message);
+      } else {
+        setGeneralError('Error al enviar el formulario. Por favor, intente nuevamente.');
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // ... rest of the component code ...
+```
+
+He modificado el componente `CandidateForm` para:
+
+1. Importar el hook `useAuth` del contexto de autenticación
+2. Obtener el token JWT usando `const { token } = useAuth()`
+3. Incluir el token en la cabecera `Authorization` de la solicitud POST al guardar el candidato
+
+Ahora la solicitud de guardado del candidato debería incluir el token JWT y no deberías recibir el error 401. Por favor, prueba nuevamente el formulario. Si sigues teniendo problemas, házmelo saber.
 

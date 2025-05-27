@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useCombobox } from 'downshift';
 import axios from 'axios';
+import { useAuth } from '../context/AuthContext';
 
 interface AutocompleteInputProps {
   label: string;
@@ -22,12 +23,23 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   const [inputItems, setInputItems] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
 
+  const { token } = useAuth();
+
   const fetchSuggestions = async (inputValue: string) => {
+    if (!token) {
+      setInputItems([]);
+      return;
+    }
+
     setLoading(true);
     try {
-      const res = await axios.get(endpoint, { params: { query: inputValue } });
+      const res = await axios.get(endpoint, {
+        params: { query: inputValue },
+        headers: { Authorization: `Bearer ${token}` },
+      });
       setInputItems(res.data);
-    } catch {
+    } catch (err) {
+      console.error('Error fetching autocomplete suggestions:', err);
       setInputItems([]);
     } finally {
       setLoading(false);
@@ -55,14 +67,15 @@ const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
     onSelectedItemChange: ({ selectedItem }) => {
       if (selectedItem) onChange(selectedItem);
     },
+    itemToString: (item) => (item ? item : ''),
   });
 
   useEffect(() => {
-    if (value && value.length > 1) {
+    if (value && value.length > 1 && token) {
       fetchSuggestions(value);
     }
     // eslint-disable-next-line
-  }, []);
+  }, [token]);
 
   return (
     <div className="mb-2">

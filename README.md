@@ -9,7 +9,7 @@ Este proyecto es una aplicación full-stack con un frontend en React y un backen
     - `index.ts`: El punto de entrada para el servidor backend.
   - `prisma/`: Contiene el archivo de esquema de Prisma para ORM.
   - `tsconfig.json`: Archivo de configuración de TypeScript.
-  - `.env`: Contiene las variables de entorno.
+  - `.env.example`: Ejemplo de archivo de variables de entorno.
 - `frontend/`: Contiene el código del lado del cliente escrito en React.
   - `src/`: Contiene el código fuente para el frontend.
   - `public/`: Contiene archivos estáticos como el archivo HTML e imágenes.
@@ -36,7 +36,11 @@ El backend es una aplicación Express escrita en TypeScript.
 Para comenzar con este proyecto, sigue estos pasos:
 
 1. Clona el repositorio.
-2. Instala las dependencias para el frontend y el backend:
+2. **Configura las variables de entorno para el backend:**
+   - Navega al directorio `backend`.
+   - Copia el archivo `.env.example` a `.env` (`cp .env.example .env` o `copy .env.example .env` en Windows).
+   - Edita el archivo `.env` y completa las variables con tus credenciales y configuración (base de datos, AWS S3, JWT Secret).
+3. Instala las dependencias para el frontend y el backend:
 ```sh
 cd frontend
 npm install
@@ -44,23 +48,28 @@ npm install
 cd ../backend
 npm install
 ```
-3. Construye el servidor backend:
+4. Construye el servidor backend:
 ```
 cd backend
 npm run build
-````
-4. Inicia el servidor backend:
+```
+5. Ejecuta las migraciones de Prisma:
+```sh
+cd backend
+npx prisma migrate dev --name initial_migration # Usa un nombre descriptivo
+```
+6. Inicia el servidor backend:
 ```
 cd backend
-npm run dev 
+npm run dev
 ```
 
-5. En una nueva ventana de terminal, construye el servidor frontend:
+7. En una nueva ventana de terminal, construye el servidor frontend:
 ```
 cd frontend
 npm run build
 ```
-6. Inicia el servidor frontend:
+8. Inicia el servidor frontend:
 ```
 cd frontend
 npm start
